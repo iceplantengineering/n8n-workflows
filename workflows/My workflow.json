@@ -1,0 +1,327 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1728,
+        -240
+      ],
+      "id": "620c25f3-5f3c-4e62-8443-047b83069fba",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4a67ceb9-b8dc-4b93-b42d-8ebd498f0eb3",
+              "name": "currentDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1520,
+        -240
+      ],
+      "id": "fc75234f-bb66-46f6-9ea8-9ba14ad858a2",
+      "name": "set current date",
+      "alwaysOutputData": false,
+      "executeOnce": false,
+      "retryOnFail": false,
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -1328,
+        -400
+      ],
+      "id": "9da80ee7-5cc7-4d89-bb18-3a13f5f10c1d",
+      "name": "MIT Technology Review"
+    },
+    {
+      "parameters": {
+        "url": "https://techcrunch.com/feed/",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -1328,
+        -80
+      ],
+      "id": "beb691f9-db55-4aa6-94e4-04f8f13ef58f",
+      "name": "TechCrunch"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1072,
+        -256
+      ],
+      "id": "f58e9480-4705-4b7d-90d3-48800a71c4dc",
+      "name": "Merge 3 info"
+    },
+    {
+      "parameters": {
+        "url": "https://www.automotiveworld.com/feed/",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -1328,
+        -240
+      ],
+      "id": "f25d1039-3912-4073-a716-075218447c49",
+      "name": "Automotive World"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nif (!items || items.length === 0) {\n  return [];\n}\n\n// 全てのアイテムをそのまま返す（フィルタリングなし）\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -864,
+        -240
+      ],
+      "id": "d19ba2f4-1095-474e-b1af-5bd19c38ca24",
+      "name": "Filter today's news"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=以下のニュース記事を日本語で要約してください。要約は簡潔に3-5文程度でまとめ、最後に元の記事URLを含めてください。\n\nタイトル: {{ $json.title }}\n投稿者: {{ $json.creator }}\n公開日: {{ $json.pubDate }}\nURL: {{ $json.link }}\n\n内容:\n{{ $json.contentSnippet }}\n\n出力形式:\n【タイトル】\n（日本語訳されたタイトル）\n\n【要約】\n（3-5文の日本語要約）\n\n【詳細URL】\n{{ $json.link }}",
+        "batching": {
+          "batchSize": 5
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        -656,
+        -240
+      ],
+      "id": "48968521-74d8-4531-a62c-a19fc5f7d0f9",
+      "name": "Basic LLM Chain",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        -656,
+        -48
+      ],
+      "id": "fdb56c29-3bb6-45e9-93d7-7141c035dd02",
+      "name": "DeepSeek Chat Model",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "QrbX3w1m1Sy7Ek4f",
+          "name": "DeepSeek account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nlet emailBody = `本日のAI・テクノロジーニュース要約\\n━━━━━━━━━━━━━━━━━━━━━━\\n\\n`;\n\nitems.forEach((item, index) => {\n  const summary = item.json.response || item.json.text || item.json.content || item.json.output || JSON.stringify(item.json);\n  emailBody += `【記事 ${index + 1}】\\n`;\n  emailBody += summary + '\\n\\n';\n  emailBody += '─────────────────────────\\n\\n';\n});\n\nemailBody += `\\nこのメールはn8nワークフローにより自動生成されました。`;\n\nreturn [{\n  json: {\n    subject: `【AIニュース】${new Date().toLocaleDateString('ja-JP')} - ${items.length}件の記事`,\n    body: emailBody,\n    itemCount: items.length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        -240
+      ],
+      "id": "f5589011-83d1-4b1a-81ec-6316dfbd655e",
+      "name": "E-mail formatting"
+    },
+    {
+      "parameters": {
+        "fromEmail": "iceplantengineering@gmail.com",
+        "toEmail": "j-yamamoto@icej.co.jp",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        -128,
+        -240
+      ],
+      "id": "60102aaa-dc6d-4284-b302-81ce76f38738",
+      "name": "Send email",
+      "webhookId": "e69fdbf8-13ef-4351-842e-8909627e80b0",
+      "credentials": {
+        "smtp": {
+          "id": "OGYT7q9YoDzTLAG6",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "set current date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "set current date": {
+      "main": [
+        [
+          {
+            "node": "MIT Technology Review",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Automotive World",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TechCrunch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MIT Technology Review": {
+      "main": [
+        [
+          {
+            "node": "Merge 3 info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TechCrunch": {
+      "main": [
+        [
+          {
+            "node": "Merge 3 info",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Automotive World": {
+      "main": [
+        [
+          {
+            "node": "Merge 3 info",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge 3 info": {
+      "main": [
+        [
+          {
+            "node": "Filter today's news",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter today's news": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "E-mail formatting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "E-mail formatting": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "93868aab-cb27-411c-9b9f-947d421a94c0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e2436ed8c033db3059fd116bc9b1ceddcdc3501dde5787aff36854f3ea348352"
+  },
+  "id": "fH9JHCBxm8YWvY3q",
+  "tags": []
+}
